@@ -78,6 +78,13 @@ internal sealed class ReAccreditationNotificationHook(
         (string TemplateKey, string Description)
     > s_actionTemplates = new(StringComparer.OrdinalIgnoreCase)
     {
+        // RA-316: the DulyMade email used to be sent by the now-deleted
+        // ReAccreditationDulyMadeHook, which hand-rolled its own copy of the
+        // send/audit logic. Duly making is a transition like any other now, so
+        // it routes through this hook's generic path — one code path, and the
+        // audit descriptions ("Application marked duly made email sent/failed")
+        // come out identical to the ones it replaces.
+        ["duly-make"] = ("DulyMade", "Application marked duly made"),
         ["payment-received"] = ("AssessmentInProgress", "Assessment started"),
         ["sla-extend"] = ("SlaExtended", "SLA extended"),
         ["approve"] = ("Decision", "Decision recorded: approved"),
@@ -89,6 +96,7 @@ internal sealed class ReAccreditationNotificationHook(
         ["withdraw-during-duly-made"] = ("Withdrawn", "Application withdrawn"),
         ["withdraw-during-assessment"] = ("Withdrawn", "Application withdrawn"),
         ["withdraw-during-decision"] = ("Withdrawn", "Application withdrawn"),
+        ["withdraw-during-query"] = ("Withdrawn", "Application withdrawn"),
     };
 
     public async Task OnSubmittedAsync(
@@ -157,7 +165,8 @@ internal sealed class ReAccreditationNotificationHook(
         WorkItem workItem,
         WorkItemAssignmentChange change,
         ClaimsPrincipal user,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         if (!IsReAccreditation(workItem))
         {
@@ -174,7 +183,7 @@ internal sealed class ReAccreditationNotificationHook(
             WorkItemAssignmentChange.Assigned => "assigned to an officer",
             WorkItemAssignmentChange.Reassigned => "reassigned to a different officer",
             WorkItemAssignmentChange.Unassigned => "unassigned",
-            _ => string.Empty
+            _ => string.Empty,
         };
 
         // changed_by comes from the acting principal, not workItem.AssignedBy:
@@ -182,17 +191,17 @@ internal sealed class ReAccreditationNotificationHook(
         // engine has already cleared it to null by the time an unassign reaches
         // us. Prefer the human-readable name claim, same precedence as the
         // audit log's createdByName/createdBy.
-        var changedBy = user.FindFirstValue("user:name")
-            ?? user.FindFirstValue("user:id")
-            ?? string.Empty;
+        var changedBy =
+            user.FindFirstValue("user:name") ?? user.FindFirstValue("user:id") ?? string.Empty;
 
         var extra = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["assignment_event"] = assignmentEvent,
-            ["officer_name"] = change == WorkItemAssignmentChange.Unassigned
-                ? string.Empty
-                : workItem.AssignedToName ?? string.Empty,
-            ["changed_by"] = changedBy
+            ["officer_name"] =
+                change == WorkItemAssignmentChange.Unassigned
+                    ? string.Empty
+                    : workItem.AssignedToName ?? string.Empty,
+            ["changed_by"] = changedBy,
         };
 
         return SendRegulatorEmailAsync(
@@ -201,7 +210,8 @@ internal sealed class ReAccreditationNotificationHook(
             description: $"Officer assignment ({assignmentEvent})",
             extraPersonalisation: extra,
             user,
-            cancellationToken);
+            cancellationToken
+        );
     }
 
     private static bool IsReAccreditation(WorkItem workItem) =>
@@ -373,7 +383,8 @@ internal sealed class ReAccreditationNotificationHook(
         string description,
         Dictionary<string, string>? extraPersonalisation,
         ClaimsPrincipal user,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         var reference = workItem.Id.ToString();
 
@@ -399,9 +410,13 @@ internal sealed class ReAccreditationNotificationHook(
         if (string.IsNullOrWhiteSpace(recipient))
         {
             logger.LogInformation(
-                "Skipping {Description} notification for work item {WorkItemId} ({TemplateKey}): " +
-                "no configured regulator mailbox for nation {Nation}.",
-                description, workItem.Id, templateKey, nation?.ToString() ?? "(none)");
+                "Skipping {Description} notification for work item {WorkItemId} ({TemplateKey}): "
+                    + "no configured regulator mailbox for nation {Nation}.",
+                description,
+                workItem.Id,
+                templateKey,
+                nation?.ToString() ?? "(none)"
+            );
             var skipAppended = await auditAppender.AppendAsync(
                 workItem.Id,
                 action: "notification-skipped",
@@ -411,15 +426,18 @@ internal sealed class ReAccreditationNotificationHook(
                     ["templateKey"] = templateKey,
                     ["reference"] = reference,
                     ["nation"] = nation?.ToString(),
-                    ["reason"] = "missing-regulator-mailbox"
+                    ["reason"] = "missing-regulator-mailbox",
                 },
                 user,
-                cancellationToken);
+                cancellationToken
+            );
             if (!skipAppended)
             {
                 logger.LogWarning(
                     "notification-skipped audit entry could not be persisted for work item {WorkItemId} ({TemplateKey}).",
-                    workItem.Id, templateKey);
+                    workItem.Id,
+                    templateKey
+                );
             }
 
             return;
@@ -429,7 +447,7 @@ internal sealed class ReAccreditationNotificationHook(
         {
             ["organisation_name"] = payload?.OrganisationName ?? string.Empty,
             ["registration_number"] = payload?.RegistrationNumber ?? string.Empty,
-            ["reference"] = reference
+            ["reference"] = reference,
         };
         if (extraPersonalisation is not null)
         {
@@ -440,9 +458,13 @@ internal sealed class ReAccreditationNotificationHook(
         }
 
         logger.LogInformation(
-            "Sending {Description} notification for work item {WorkItemId} " +
-            "(template={TemplateKey}, reference={Reference})",
-            description, workItem.Id, templateKey, reference);
+            "Sending {Description} notification for work item {WorkItemId} "
+                + "(template={TemplateKey}, reference={Reference})",
+            description,
+            workItem.Id,
+            templateKey,
+            reference
+        );
 
         // RA-211: region drives the reply-to mailbox (NotifyConfig.GetReplyToId);
         // pass the same nation we resolved the mailbox from so regulator-facing
@@ -461,9 +483,13 @@ internal sealed class ReAccreditationNotificationHook(
         sw.Stop();
 
         logger.LogInformation(
-            "Notification dispatch completed for work item {WorkItemId} " +
-            "(template={TemplateKey}, success={NotifySuccess}, durationMs={NotifyDurationMs})",
-            workItem.Id, templateKey, result.IsSuccess, sw.ElapsedMilliseconds);
+            "Notification dispatch completed for work item {WorkItemId} "
+                + "(template={TemplateKey}, success={NotifySuccess}, durationMs={NotifyDurationMs})",
+            workItem.Id,
+            templateKey,
+            result.IsSuccess,
+            sw.ElapsedMilliseconds
+        );
 
         var details = new Dictionary<string, string?>
         {
@@ -471,7 +497,7 @@ internal sealed class ReAccreditationNotificationHook(
             ["recipient"] = recipient,
             ["reference"] = reference,
             ["nation"] = nation?.ToString(),
-            ["providerMessageId"] = result.ProviderMessageId
+            ["providerMessageId"] = result.ProviderMessageId,
         };
 
         if (result.IsSuccess)
@@ -482,12 +508,15 @@ internal sealed class ReAccreditationNotificationHook(
                 actionDisplayName: $"{description} email sent",
                 details,
                 user,
-                cancellationToken);
+                cancellationToken
+            );
             if (!appended)
             {
                 logger.LogWarning(
                     "notification-sent audit entry could not be persisted for work item {WorkItemId} ({TemplateKey}).",
-                    workItem.Id, templateKey);
+                    workItem.Id,
+                    templateKey
+                );
             }
         }
         else
@@ -499,12 +528,15 @@ internal sealed class ReAccreditationNotificationHook(
                 actionDisplayName: $"{description} email failed",
                 details,
                 user,
-                cancellationToken);
+                cancellationToken
+            );
             if (!appended)
             {
                 logger.LogWarning(
                     "notification-failed audit entry could not be persisted for work item {WorkItemId} ({TemplateKey}).",
-                    workItem.Id, templateKey);
+                    workItem.Id,
+                    templateKey
+                );
             }
         }
     }
@@ -534,10 +566,7 @@ internal sealed class ReAccreditationNotificationHook(
     /// <c>decision_notes</c>) always pass a present, possibly-empty value.
     /// </summary>
     private static string LatestWorkItemNoteText(WorkItem workItem) =>
-        workItem
-            .Notes?.OrderByDescending(note => note.CreatedAt)
-            .FirstOrDefault()
-            ?.Text
+        workItem.Notes?.OrderByDescending(note => note.CreatedAt).FirstOrDefault()?.Text
         ?? string.Empty;
 
     private Dictionary<string, string> BuildPersonalisation(

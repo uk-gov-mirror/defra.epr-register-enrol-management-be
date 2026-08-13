@@ -71,8 +71,7 @@ internal sealed class ReAccreditationDisplayNameSnapshotMigration(
         {
             TemplateVersion = "v9",
             States = renamedStates,
-            Transitions = snapshot.Transitions,
-            TasksByState = snapshot.TasksByState
+            Transitions = snapshot.Transitions
         };
         workItem.TemplateVersion = "v9";
     }

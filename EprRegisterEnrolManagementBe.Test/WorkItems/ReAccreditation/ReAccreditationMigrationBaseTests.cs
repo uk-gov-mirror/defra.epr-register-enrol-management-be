@@ -67,8 +67,7 @@ public class ReAccreditationMigrationBaseTests
                 States = currentSnapshot.States,
                 Transitions = currentSnapshot.Transitions
                     .Where(t => !t.ActionId.StartsWith("resume-during-", StringComparison.Ordinal))
-                    .ToList(),
-                TasksByState = currentSnapshot.TasksByState
+                    .ToList()
             }
         };
 
@@ -116,8 +115,7 @@ public class ReAccreditationMigrationBaseTests
                 States = currentSnapshot.States,
                 Transitions = currentSnapshot.Transitions
                     .Append(new WorkItemTransition("duly-make", "Mark as duly made", "submitted", "duly-made"))
-                    .ToList(),
-                TasksByState = currentSnapshot.TasksByState
+                    .ToList()
             }
         };
 

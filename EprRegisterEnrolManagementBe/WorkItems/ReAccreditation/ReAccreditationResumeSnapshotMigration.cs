@@ -42,10 +42,10 @@ internal sealed class ReAccreditationResumeSnapshotMigration(
     // resolution.
     private static readonly IReadOnlyList<WorkItemTransition> s_newTransitions =
     [
-        new WorkItemTransition("resume-during-duly-making", "Resume", "queried", "submitted", RequiresAllTasksComplete: false, CallerInvocable: false),
-        new WorkItemTransition("resume-during-duly-made", "Resume", "queried", "duly-made", RequiresAllTasksComplete: false, CallerInvocable: false),
-        new WorkItemTransition("resume-during-assessment", "Resume", "queried", "assessment-in-progress", RequiresAllTasksComplete: false, CallerInvocable: false),
-        new WorkItemTransition("resume-during-decision", "Resume", "queried", "awaiting-decision", RequiresAllTasksComplete: false, CallerInvocable: false),
+        new WorkItemTransition("resume-during-duly-making", "Resume", "queried", "submitted", CallerInvocable: false),
+        new WorkItemTransition("resume-during-duly-made", "Resume", "queried", "duly-made", CallerInvocable: false),
+        new WorkItemTransition("resume-during-assessment", "Resume", "queried", "assessment-in-progress", CallerInvocable: false),
+        new WorkItemTransition("resume-during-decision", "Resume", "queried", "awaiting-decision", CallerInvocable: false),
     ];
 
     public override string Name => "ReAccreditation: add resume-during-* transitions to snapshot (v6 → v7)";
@@ -61,8 +61,7 @@ internal sealed class ReAccreditationResumeSnapshotMigration(
         {
             TemplateVersion = "v7",
             States = snapshot.States,
-            Transitions = snapshot.Transitions.Concat(s_newTransitions).ToList(),
-            TasksByState = snapshot.TasksByState
+            Transitions = snapshot.Transitions.Concat(s_newTransitions).ToList()
         };
         workItem.TemplateVersion = "v7";
     }
