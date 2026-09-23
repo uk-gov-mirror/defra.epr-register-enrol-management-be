@@ -21,7 +21,7 @@ public interface ISlaService
     /// supplied reason, and fans out to every registered
     /// <see cref="IWorkItemPostActionHook"/> with an <c>sla-extend</c>
     /// action id so per-module notification hooks (e.g. the operator
-    /// "Determination deadline extended" email) fire automatically.
+    /// "Determination deadline changed" email) fire automatically.
     /// </summary>
     Task<SlaActionResult> ExtendAsync(
         Guid workItemId,
@@ -155,7 +155,7 @@ public sealed class SlaService : ISlaService
         AppendAuditEntry(
             workItem,
             action: "sla-extended",
-            actionDisplayName: "Determination deadline extended",
+            actionDisplayName: "Determination deadline changed",
             user,
             now,
             reason,
